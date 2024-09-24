@@ -6,69 +6,157 @@ from dots_infrastructure.DataClasses import EsdlId, HelicsCalculationInformation
 from dots_infrastructure.HelicsFederateHelpers import HelicsSimulationExecutor
 from dots_infrastructure.Logger import LOGGER
 from esdl import EnergySystem
+from dots_infrastructure.CalculationServiceHelperFunctions import get_vector_param_with_name
 
-class CalculationServiceEConnection(HelicsSimulationExecutor):
+import json
+import numpy as np
+from ExampleCalculationService.thermalsystems import House, HeatBuffer, objectfunctions
+
+class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
     def __init__(self):
         super().__init__()
 
         subscriptions_values = [
-            SubscriptionDescription(esdl_type="PVInstallation", 
-                                    input_name="PV_Dispatch", 
-                                    input_unit="W", 
-                                    input_type=h.HelicsDataType.DOUBLE)
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="solar_irradiance",
+                                   input_unit="Wm2",
+                                   input_type=h.HelicsDataType.VECTOR),
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="air_temperature",
+                                   input_unit="K",
+                                   input_type=h.HelicsDataType.VECTOR),
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="soil_temperature",
+                                   input_unit="K",
+                                   input_type=h.HelicsDataType.VECTOR)
         ]
 
         publication_values = [
-            PublicationDescription(global_flag=True, 
-                                   esdl_type="EConnection", 
-                                   output_name="EConnectionDispatch", 
-                                   output_unit="W", 
-                                   data_type=h.HelicsDataType.DOUBLE)
+            PublicationDescription(global_flag=True,
+                                   esdl_type="HeatPump",
+                                   output_name="buffer_temperature",
+                                   output_unit="K",
+                                   data_type=h.HelicsDataType.DOUBLE),
+            PublicationDescription(global_flag=True,
+                                   esdl_type="HeatPump",
+                                   output_name="house_temperatures",
+                                   output_unit="K",
+                                   data_type=h.HelicsDataType.VECTOR)
         ]
 
-        e_connection_period_in_seconds = 60
+        hybridheatpump_period_in_seconds = 900
+        self.hybridheatpump_period_in_seconds = hybridheatpump_period_in_seconds
 
         calculation_information = HelicsCalculationInformation(
-            time_period_in_seconds=e_connection_period_in_seconds, 
+            time_period_in_seconds=hybridheatpump_period_in_seconds,
             time_request_type=TimeRequestType.ON_INPUT,
             offset=0, 
             uninterruptible=False, 
             wait_for_current_time_update=False, 
             terminate_on_error=True, 
-            calculation_name="EConnectionDispatch", 
+            calculation_name="send_temperatures",
             inputs=subscriptions_values, 
             outputs=publication_values, 
-            calculation_function=self.e_connection_dispatch
+            calculation_function=self.send_temperatures
         )
         self.add_calculation(calculation_information)
 
-        publication_values = [
-            PublicationDescription(True, "EConnection", "Schedule", "W", h.HelicsDataType.VECTOR)
-        ]
-
-        e_connection_period_in_seconds = 21600
-
-        calculation_information_schedule = HelicsCalculationInformation(e_connection_period_in_seconds, TimeRequestType.PERIOD, 0, False, False, True, "EConnectionSchedule", [], publication_values, self.e_connection_da_schedule)
-        self.add_calculation(calculation_information_schedule)
+        # publication_values = [
+        #     PublicationDescription(True, "EConnection", "Schedule", "W", h.HelicsDataType.VECTOR)
+        # ]
+        #
+        # e_connection_period_in_seconds = 21600
+        #
+        # calculation_information_schedule = HelicsCalculationInformation(e_connection_period_in_seconds, TimeRequestType.PERIOD, 0, False, False, True, "EConnectionSchedule", [], publication_values, self.e_connection_da_schedule)
+        # self.add_calculation(calculation_information_schedule)
 
     def init_calculation_service(self, energy_system: esdl.EnergySystem):
         LOGGER.info("init calculation service")
+        self.hhp_description_dicts: dict[EsdlId, dict[str, float]] = {}
+        self.hhp_esdl_thermalpower: dict[EsdlId, float] = {}
+
+        self.heat_buffers: dict[EsdlId, HeatBuffer] = {}
+        self.houses: dict[EsdlId, House] = {}
+
+        self.inv_capacitance_matrices: dict[EsdlId, np.array] = {}
+        self.conductance_matrices: dict[EsdlId, np.array] = {}
+        self.forcing_matrices: dict[EsdlId, np.array] = {}
+        # In other functions
+        self.buffer_temperatures: dict[EsdlId, float] = {}
+        self.house_temperatures: dict[EsdlId, List[float]] = {}
+
         for esdl_id in self.simulator_configuration.esdl_ids:
             LOGGER.info(f"Example of iterating over esdl ids: {esdl_id}")
+            # Initialize heat tanks and houses
+            # Get data from ESDL
+            for obj in energy_system.eAllContents():
+                if hasattr(obj, "id") and obj.id == esdl_id:
+                    hhpsystem = obj
+                    if isinstance(obj.eContainer(), esdl.Building):
+                        building_description = json.loads(obj.eContainer().description)
+            self.hhp_description_dicts[esdl_id] = json.loads(hhpsystem.description)
+            self.hhp_esdl_thermalpower[esdl_id] = hhpsystem.heatPumpThermalPower
 
-    def e_connection_dispatch(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
+            # Set Buffer Tank
+            buffer_capacitance = self.hhp_description_dicts[esdl_id]['buffer_capacitance']
+            self.heat_buffers[esdl_id] = HeatBuffer(buffer_capacitance)
+
+            # Set Houses
+            capacities = {'C_in': building_description['C_in'], 'C_out': building_description['C_out']}
+            resistances = {'R_exch': building_description['R_exch'], 'R_floor': building_description['R_floor'],
+                           'R_vent': building_description['R_vent'], 'R_cond': building_description['R_cond']}
+            window_area = building_description['A_glass']
+            self.houses[esdl_id] = House(capacities, resistances, window_area)
+
+
+    def send_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
+        # START user calc
+        LOGGER.info("calculation 'send_temperatures' started")
+        # Calculation(s) per ESDL object
+        # temperatures_hybrid_dict: dict[EsdlId, TemperaturesHybrid] = {}
+
+        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "predicted_solar_irradiances")[0]
+        predicted_air_temperatures = get_vector_param_with_name(param_dict, "predicted_air_temperatures")[0]
+        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "predicted_soil_temperatures")[0]
+
+        # Check if the house and tank temperatures are properly initialized
+        house = self.houses[esdl_id]
+        heat_buffer = self.heat_buffers[esdl_id]
+        if (house.temperatures is None) or (buffer.temperature is None):
+            current_solar_irradiance = predicted_solar_irradiances[0]
+            current_air_temperature  = predicted_air_temperatures[0]
+            current_soil_temperature = predicted_soil_temperatures[0]
+
+            hhp_description_dict = self.hhp_description_dicts[esdl_id]
+
+            heat_buffer.set_initial_temperature(hhp_description_dict['buffer_temp_0'])
+            house.set_initial_temperatures(hhp_description_dict['house_temp_0'],
+                                           self.hhp_esdl_thermalpower[esdl_id],
+                                           current_air_temperature,
+                                           current_soil_temperature,
+                                           current_solar_irradiance)
+
+            self.heat_buffers[esdl_id] = heat_buffer
+            self.houses[esdl_id] = house
+
         ret_val = {}
-        ret_val["EConnectionDispatch"] = sum(param_dict["PV_Dispatch"])
-        self.influx_connector.set_time_step_data_point(esdl_id, "EConnectionDispatch", simulation_time, ret_val["EConnectionDispatch"])
+        ret_val["buffer_temperature"]   = heat_buffer.temperature
+        ret_val["house_temperatures"]   = house.temperatures
+
+        print(heat_buffer.temperature, house.temperatures)
+
+        LOGGER.info("calculation 'send_temperatures' finished")
+        # END user calc
+        # self.influx_connector.set_time_step_data_point(esdl_id, "EConnectionDispatch", simulation_time, ret_val["EConnectionDispatch"])
         return ret_val
     
-    def e_connection_da_schedule(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
-        ret_val = {}
-        return ret_val
+    # def e_connection_da_schedule(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
+    #     ret_val = {}
+    #     return ret_val
 
 if __name__ == "__main__":
 
-    helics_simulation_executor = CalculationServiceEConnection()
+    helics_simulation_executor = CalculationServiceHybridHeatPump()
     helics_simulation_executor.start_simulation()
     helics_simulation_executor.stop_simulation()
