@@ -62,14 +62,33 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         )
         self.add_calculation(calculation_information)
 
-        # publication_values = [
-        #     PublicationDescription(True, "EConnection", "Schedule", "W", h.HelicsDataType.VECTOR)
-        # ]
-        #
-        # e_connection_period_in_seconds = 21600
-        #
-        # calculation_information_schedule = HelicsCalculationInformation(e_connection_period_in_seconds, TimeRequestType.PERIOD, 0, False, False, True, "EConnectionSchedule", [], publication_values, self.e_connection_da_schedule)
-        # self.add_calculation(calculation_information_schedule)
+        subscriptions_values = [
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="solar_irradiance",
+                                   input_unit="Wm2",
+                                   input_type=h.HelicsDataType.VECTOR),
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="air_temperature",
+                                   input_unit="K",
+                                   input_type=h.HelicsDataType.VECTOR),
+            SubscriptionDescription(esdl_type="EnvironmentalProfiles",
+                                   input_name="soil_temperature",
+                                   input_unit="K",
+                                   input_type=h.HelicsDataType.VECTOR),
+            SubscriptionDescription(esdl_type="EConnection",
+                                    input_name="heat_power_to_buffer",
+                                    input_unit="W",
+                                    input_type=h.HelicsDataType.DOUBLE),
+            SubscriptionDescription(esdl_type="EConnection",
+                                    input_name="heat_power_to_house",
+                                    input_unit="W",
+                                    input_type=h.HelicsDataType.DOUBLE)
+        ]
+
+        hybridheatpump_update_period_in_seconds = 900
+
+        calculation_information_update = HelicsCalculationInformation(hybridheatpump_update_period_in_seconds, TimeRequestType.ON_INPUT, 0, False, False, True, "update_temperatures", subscriptions_values, [], self.update_temperatures)
+        self.add_calculation(calculation_information_update)
 
     def init_calculation_service(self, energy_system: esdl.EnergySystem):
         LOGGER.info("init calculation service")
@@ -151,9 +170,85 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         # self.influx_connector.set_time_step_data_point(esdl_id, "EConnectionDispatch", simulation_time, ret_val["EConnectionDispatch"])
         return ret_val
     
-    # def e_connection_da_schedule(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
-    #     ret_val = {}
-    #     return ret_val
+    def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
+        # START user calc
+        LOGGER.info("calculation 'update_temperatures' started")
+        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "predicted_solar_irradiances")[0]
+        predicted_air_temperatures = get_vector_param_with_name(param_dict, "predicted_air_temperatures")[0]
+        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "predicted_soil_temperatures")[0]
+        heat_to_buffer = get_vector_param_with_name(param_dict, "heat_power_to_buffer")[0]
+        heat_to_house = get_vector_param_with_name(param_dict,"heat_power_to_house")[0]
+
+        current_air_temperature = predicted_air_temperatures[0]
+        current_soil_temperature = predicted_soil_temperatures[0]
+        current_solar_irradiance = predicted_solar_irradiances[0]
+
+        heat_buffer = self.heat_buffers[esdl_id]
+        house = self.houses[esdl_id]
+
+        LOGGER.info(f"esdl id: {esdl_id}")
+        LOGGER.info(f"house temperatures before: {house.temperatures}")
+        LOGGER.info(f"buffer temperature before: {heat_buffer.temperature}")
+        LOGGER.info(f"heat to house: {heat_to_house}")
+        LOGGER.info(f"heat to buffer: {heat_to_buffer}")
+
+        # Update temperatures
+        house.update_temperatures(self.hybridheatpump_period_in_seconds,
+                                  current_air_temperature,
+                                  current_soil_temperature,
+                                  current_solar_irradiance,
+                                  heat_to_house)
+        heat_buffer.update_temperature(self.hybridheatpump_period_in_seconds,
+                                       heat_to_house,
+                                       heat_to_buffer)
+
+        LOGGER.info(f"house temperatures after: {house.temperatures}")
+        LOGGER.info(f"buffer temperature after: {heat_buffer.temperature}")
+
+        house_temperatures = house.temperatures
+        heat_buffer_temperature = heat_buffer.temperature
+
+        # Check whether temperatures did not surpass the limits due to some numerical error
+        lower_bound_buffer = self.hhp_description_dicts[esdl_id]['buffer_temp_min']
+        upper_bound_buffer = self.hhp_description_dicts[esdl_id]['buffer_temp_max']
+        lower_bound_house = self.hhp_description_dicts[esdl_id]['house_temp_min']
+
+        # Correct errors up till error eps
+        eps = 1.0e-4
+        if abs(heat_buffer_temperature - lower_bound_buffer) < eps:
+            heat_buffer_temperature = lower_bound_buffer + eps
+        if abs(heat_buffer_temperature - upper_bound_buffer) < eps:
+            heat_buffer_temperature = upper_bound_buffer - eps
+        if abs(house_temperatures[0] - lower_bound_house) < eps:
+            house_temperatures[0] = lower_bound_house + eps
+
+        # Raise errors if the values are still not within boundaries
+        if (heat_buffer_temperature < lower_bound_buffer) or (heat_buffer_temperature > upper_bound_buffer):
+            raise ValueError(
+                f"Hybrid Heat pump {esdl_id} is charged over/under its buffer capacity")
+        if house_temperatures[0] < lower_bound_house:
+            LOGGER.info(
+                f"Hybrid Heat pump {esdl_id} is charged over/under its house capacity")
+            raise ValueError(
+                f"Hybrid Heat pump {esdl_id} is charged over/under its house capacity")
+
+        # Save as state
+        house.temperatures = house_temperatures.tolist()
+        heat_buffer.temperature = heat_buffer_temperature
+        self.houses[esdl_id] = house
+        self.heat_buffers[esdl_id] = heat_buffer
+
+        # # Write to influx
+        # time_step_nr = int(new_step.parameters_dict['time_step_nr'])
+        # self.influxdb_client.set_time_step_data_point(esdl_id, 'buffer_temperature',
+        #                                               time_step_nr, heat_buffer_temperature)
+        # self.influxdb_client.set_time_step_data_point(esdl_id, 'house_temperature',
+        #                                               time_step_nr, house_temperatures[0])
+        # if time_step_nr == self.nr_of_time_steps:
+        #     self.influxdb_client.set_summary_data_point(esdl_id, 'summary_check', 1)
+        LOGGER.info("calculation 'update_temperatures' finished")
+        # ret_val = {}
+        return None
 
 if __name__ == "__main__":
 
