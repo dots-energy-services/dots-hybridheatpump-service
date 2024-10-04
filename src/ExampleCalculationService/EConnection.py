@@ -34,12 +34,12 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
         publication_values = [
             PublicationDescription(global_flag=True,
-                                   esdl_type="HeatPump",
+                                   esdl_type="HybridHeatPump",
                                    output_name="buffer_temperature",
                                    output_unit="K",
                                    data_type=h.HelicsDataType.DOUBLE),
             PublicationDescription(global_flag=True,
-                                   esdl_type="HeatPump",
+                                   esdl_type="HybridHeatPump",
                                    output_name="house_temperatures",
                                    output_unit="K",
                                    data_type=h.HelicsDataType.VECTOR)
