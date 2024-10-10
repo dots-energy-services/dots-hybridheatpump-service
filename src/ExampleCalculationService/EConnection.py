@@ -62,20 +62,6 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         )
         self.add_calculation(calculation_information)
 
-        calculation_information = HelicsCalculationInformation(
-            time_period_in_seconds=hybridheatpump_period_in_seconds,
-            time_request_type=TimeRequestType.ON_INPUT,
-            offset=0,
-            uninterruptible=False,
-            wait_for_current_time_update=False,
-            terminate_on_error=True,
-            calculation_name="receive_weather",
-            inputs=subscriptions_values,
-            outputs=[],
-            calculation_function=self.receive_weather
-        )
-        self.add_calculation(calculation_information)
-
         subscriptions_values = [
             SubscriptionDescription(esdl_type="EnvironmentalProfiles",
                                    input_name="solar_irradiance",
@@ -182,10 +168,6 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         LOGGER.info("calculation 'send_temperatures' finished")
         # END user calc
         # self.influx_connector.set_time_step_data_point(esdl_id, "EConnectionDispatch", simulation_time, ret_val["EConnectionDispatch"])
-        return ret_val
-
-    def receive_weather(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
-        ret_val = {}
         return ret_val
     
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
