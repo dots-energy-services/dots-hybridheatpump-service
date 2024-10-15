@@ -134,9 +134,9 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         # Calculation(s) per ESDL object
         # temperatures_hybrid_dict: dict[EsdlId, TemperaturesHybrid] = {}
 
-        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "predicted_solar_irradiances")[0]
-        predicted_air_temperatures = get_vector_param_with_name(param_dict, "predicted_air_temperatures")[0]
-        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "predicted_soil_temperatures")[0]
+        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
+        predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
+        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "soil_temperature")[0]
 
         # Check if the house and tank temperatures are properly initialized
         house = self.houses[esdl_id]
@@ -172,9 +172,9 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
-        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "predicted_solar_irradiances")[0]
-        predicted_air_temperatures = get_vector_param_with_name(param_dict, "predicted_air_temperatures")[0]
-        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "predicted_soil_temperatures")[0]
+        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
+        predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
+        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "soil_temperature")[0]
         heat_to_buffer = get_vector_param_with_name(param_dict, "heat_power_to_buffer")[0]
         heat_to_house = get_vector_param_with_name(param_dict,"heat_power_to_house")[0]
 
