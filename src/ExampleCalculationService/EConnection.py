@@ -141,7 +141,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         # Check if the house and tank temperatures are properly initialized
         house = self.houses[esdl_id]
         heat_buffer = self.heat_buffers[esdl_id]
-        if (house.temperatures is None) or (buffer.temperature is None):
+        if (house.temperatures is None) or (heat_buffer.temperature is None):
             current_solar_irradiance = predicted_solar_irradiances[0]
             current_air_temperature  = predicted_air_temperatures[0]
             current_soil_temperature = predicted_soil_temperatures[0]
