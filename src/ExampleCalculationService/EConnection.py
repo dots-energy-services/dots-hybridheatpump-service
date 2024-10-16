@@ -75,11 +75,11 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
                                    input_unit="K",
                                    input_type=h.HelicsDataType.VECTOR),
             SubscriptionDescription(esdl_type="EConnection",
-                                    input_name="heat_power_to_buffer",
+                                    input_name="heat_power_to_buffer_hhp",
                                     input_unit="W",
                                     input_type=h.HelicsDataType.DOUBLE),
             SubscriptionDescription(esdl_type="EConnection",
-                                    input_name="heat_power_to_house",
+                                    input_name="heat_power_to_house_hhp",
                                     input_unit="W",
                                     input_type=h.HelicsDataType.DOUBLE)
         ]
@@ -179,8 +179,8 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
         predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
         predicted_soil_temperatures = get_vector_param_with_name(param_dict, "soil_temperature")[0]
-        heat_to_buffer = get_vector_param_with_name(param_dict, "heat_power_to_buffer")[0]
-        heat_to_house = get_vector_param_with_name(param_dict,"heat_power_to_house")[0]
+        heat_to_buffer = get_vector_param_with_name(param_dict, "heat_power_to_buffer_hhp")[0]
+        heat_to_house = get_vector_param_with_name(param_dict,"heat_power_to_house_hhp")[0]
 
         current_air_temperature = predicted_air_temperatures[0]
         current_soil_temperature = predicted_soil_temperatures[0]
