@@ -72,8 +72,8 @@ class Test(unittest.TestCase):
                                                          290.18333333333334, 290.1791666666667, 290.17499999999995,
                                                          290.1708333333333, 290.16666666666663, 290.1625,
                                                          290.1583333333333, 290.15416666666664]
-        weather_ems_params["heat_power_to_buffer"] = 50.0
-        weather_ems_params["heat_power_to_house"] = 200.0
+        weather_ems_params["heat_power_to_buffer_hhp"] = 50.0
+        weather_ems_params["heat_power_to_house_hhp"] = 200.0
 
         service.init_calculation_service(energy_system)
 
