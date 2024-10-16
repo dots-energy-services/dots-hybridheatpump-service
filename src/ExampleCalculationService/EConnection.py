@@ -158,8 +158,8 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
             self.heat_buffers[esdl_id] = heat_buffer
             self.houses[esdl_id] = house
 
-            house_temperatures_list = house.temperatures.tolist()
-            # print(house_temperatures_list, type(house_temperatures_list[0]))
+        house_temperatures_list = house.temperatures.tolist()
+        # print(house_temperatures_list, type(house_temperatures_list[0]))
 
 
         ret_val = {}
