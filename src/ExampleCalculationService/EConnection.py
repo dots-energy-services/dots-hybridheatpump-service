@@ -253,6 +253,10 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         #                                               time_step_nr, house_temperatures[0])
         # if time_step_nr == self.nr_of_time_steps:
         #     self.influxdb_client.set_summary_data_point(esdl_id, 'summary_check', 1)
+        self.influx_connector.set_time_step_data_point(esdl_id, 'buffer_temperature',
+                                                      simulation_time, heat_buffer_temperature)
+        self.influx_connector.set_time_step_data_point(esdl_id, 'house_temperature',
+                                                      simulation_time, house_temperatures[0])
         LOGGER.info("calculation 'update_temperatures' finished")
         # ret_val = {}
         return None
