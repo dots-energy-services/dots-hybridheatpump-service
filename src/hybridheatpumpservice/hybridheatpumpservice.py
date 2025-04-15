@@ -10,7 +10,7 @@ from dots_infrastructure.CalculationServiceHelperFunctions import get_vector_par
 
 import json
 import numpy as np
-from ExampleCalculationService.thermalsystems import House, HeatBuffer, objectfunctions
+from hybridheatpumpservice.thermalsystems import House, HeatBuffer, objectfunctions
 
 class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 

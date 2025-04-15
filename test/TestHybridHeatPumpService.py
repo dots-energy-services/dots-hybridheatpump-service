@@ -1,6 +1,6 @@
 from datetime import datetime
 import unittest
-from ExampleCalculationService.EConnection import CalculationServiceHybridHeatPump
+from hybridheatpumpservice.EConnection import CalculationServiceHybridHeatPump
 from dots_infrastructure.DataClasses import SimulatorConfiguration, SimulaitonDataPoint, TimeStepInformation
 from dots_infrastructure.test_infra.InfluxDBMock import InfluxDBMock
 import helics as h
