@@ -108,11 +108,6 @@ class HeatBuffer:
 
 
 class objectfunctions:
-    def get_building_of_hp(self, esdl_id):
-        assert isinstance(self.esdl_objects[esdl_id].eContainer(), esdl.Building), f"Container of asset {esdl_id} " \
-                                                                                   f"is not a building"
-        return self.esdl_objects[esdl_id].eContainer()
-
     def get_first_object_from_input_list(self, input_list, esdl_id):
         objects = []
         for data_class in input_list:
