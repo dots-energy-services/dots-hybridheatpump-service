@@ -128,8 +128,6 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
     def send_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'send_temperatures' started")
-        # Calculation(s) per ESDL object
-        # temperatures_hybrid_dict: dict[EsdlId, TemperaturesHybrid] = {}
 
         predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
         predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
@@ -165,7 +163,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         ret_val["buffer_temperature"]   = heat_buffer.temperature
         ret_val["house_temperatures"]   = house_temperatures_list
 
-        print(heat_buffer.temperature, house.temperatures)
+        LOGGER.debug(heat_buffer.temperature, house.temperatures)
 
         LOGGER.info("calculation 'send_temperatures' finished")
         # END user calc
