@@ -6,7 +6,7 @@ from dots_infrastructure.DataClasses import EsdlId, HelicsCalculationInformation
 from dots_infrastructure.HelicsFederateHelpers import HelicsSimulationExecutor
 from dots_infrastructure.Logger import LOGGER
 from esdl import EnergySystem
-from dots_infrastructure.CalculationServiceHelperFunctions import get_vector_param_with_name
+from dots_infrastructure.CalculationServiceHelperFunctions import get_single_param_with_name
 
 import json
 import numpy as np
@@ -129,9 +129,9 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         # START user calc
         LOGGER.info("calculation 'send_temperatures' started")
 
-        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
-        predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
-        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "soil_temperature")[0]
+        predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
+        predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
+        predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
 
         # Check if the house and tank temperatures are properly initialized
         house = self.houses[esdl_id]
@@ -172,11 +172,11 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
-        predicted_solar_irradiances = get_vector_param_with_name(param_dict, "solar_irradiance")[0]
-        predicted_air_temperatures = get_vector_param_with_name(param_dict, "air_temperature")[0]
-        predicted_soil_temperatures = get_vector_param_with_name(param_dict, "soil_temperature")[0]
-        heat_to_buffer = get_vector_param_with_name(param_dict, "heat_power_to_buffer_hhp")[0]
-        heat_to_house = get_vector_param_with_name(param_dict,"heat_power_to_house_hhp")[0]
+        predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
+        predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
+        predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
+        heat_to_buffer = get_single_param_with_name(param_dict, "heat_power_to_buffer_hhp")
+        heat_to_house = get_single_param_with_name(param_dict,"heat_power_to_house_hhp")
 
         current_air_temperature = predicted_air_temperatures[0]
         current_soil_temperature = predicted_soil_temperatures[0]
