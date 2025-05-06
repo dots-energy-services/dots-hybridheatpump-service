@@ -163,12 +163,12 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         ret_val["buffer_temperature"]   = heat_buffer.temperature
         ret_val["house_temperatures"]   = house_temperatures_list
 
-        LOGGER.debug(heat_buffer.temperature, house.temperatures)
+        LOGGER.debug(f"buffer temperature: {heat_buffer.temperature}, house temperatures: {house.temperatures}")
 
         LOGGER.info("calculation 'send_temperatures' finished")
         # END user calc
         return ret_val
-    
+
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
