@@ -155,7 +155,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
             house_temperatures_list = house.temperatures.tolist()
         else:
-            house_temperatures_list = house.temperatures
+            house_temperatures_list = house.temperatures.tolist()
 
 
 
