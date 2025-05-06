@@ -232,7 +232,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
                 f"Hybrid Heat pump {esdl_id} is charged over/under its house capacity")
 
         # Save as state
-        house.temperatures = house_temperatures.tolist()
+        house.temperatures = house_temperatures
         heat_buffer.temperature = heat_buffer_temperature
         self.houses[esdl_id] = house
         self.heat_buffers[esdl_id] = heat_buffer
