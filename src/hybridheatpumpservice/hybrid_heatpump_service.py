@@ -213,7 +213,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         lower_bound_house = self.hhp_description_dicts[esdl_id]['house_temp_min']
 
         # Correct errors up till error eps
-        eps = 1.0e-4
+        eps = 0.1
         if abs(heat_buffer_temperature - lower_bound_buffer) < eps:
             heat_buffer_temperature = lower_bound_buffer + eps
         if abs(heat_buffer_temperature - upper_bound_buffer) < eps:
