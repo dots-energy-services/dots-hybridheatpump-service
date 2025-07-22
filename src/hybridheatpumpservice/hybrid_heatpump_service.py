@@ -172,6 +172,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
+        LOGGER.info(f"params: {param_dict}")
         predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
         predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
         predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
