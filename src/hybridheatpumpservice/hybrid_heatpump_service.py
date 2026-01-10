@@ -172,6 +172,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
     def update_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
+        LOGGER.info(f"params: {param_dict}")
         predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
         predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
         predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
@@ -213,7 +214,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         lower_bound_house = self.hhp_description_dicts[esdl_id]['house_temp_min']
 
         # Correct errors up till error eps
-        eps = 1.0e-4
+        eps = 0.1
         if abs(heat_buffer_temperature - lower_bound_buffer) < eps:
             heat_buffer_temperature = lower_bound_buffer + eps
         if abs(heat_buffer_temperature - upper_bound_buffer) < eps:
