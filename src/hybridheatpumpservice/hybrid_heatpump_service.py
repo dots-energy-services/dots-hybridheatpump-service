@@ -106,23 +106,22 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
             # Initialize heat tanks and houses
             # Get data from ESDL
             for obj in energy_system.eAllContents():
-                if hasattr(obj, "id") and obj.id == esdl_id:
+                if hasattr(obj, "id") and isinstance(obj.eContainer(), esdl.Building) and obj.id in self.simulator_configuration.esdl_ids:
                     hhpsystem = obj
-                    if isinstance(obj.eContainer(), esdl.Building):
-                        building_description = json.loads(obj.eContainer().description)
-            self.hhp_description_dicts[esdl_id] = json.loads(hhpsystem.description)
-            self.hhp_esdl_thermalpower[esdl_id] = hhpsystem.heatPumpThermalPower
+                    building_description = json.loads(obj.eContainer().description)
+                    self.hhp_description_dicts[esdl_id] = json.loads(hhpsystem.description)
+                    self.hhp_esdl_thermalpower[esdl_id] = hhpsystem.heatPumpThermalPower
 
-            # Set Buffer Tank
-            buffer_capacitance = self.hhp_description_dicts[esdl_id]['buffer_capacitance']
-            self.heat_buffers[esdl_id] = HeatBuffer(buffer_capacitance)
+                    # Set Buffer Tank
+                    buffer_capacitance = self.hhp_description_dicts[esdl_id]['buffer_capacitance']
+                    self.heat_buffers[esdl_id] = HeatBuffer(buffer_capacitance)
 
-            # Set Houses
-            capacities = {'C_in': building_description['C_in'], 'C_out': building_description['C_out']}
-            resistances = {'R_exch': building_description['R_exch'], 'R_floor': building_description['R_floor'],
-                           'R_vent': building_description['R_vent'], 'R_cond': building_description['R_cond']}
-            window_area = building_description['A_glass']
-            self.houses[esdl_id] = House(capacities, resistances, window_area)
+                    # Set Houses
+                    capacities = {'C_in': building_description['C_in'], 'C_out': building_description['C_out']}
+                    resistances = {'R_exch': building_description['R_exch'], 'R_floor': building_description['R_floor'],
+                                   'R_vent': building_description['R_vent'], 'R_cond': building_description['R_cond']}
+                    window_area = building_description['A_glass']
+                    self.houses[esdl_id] = House(capacities, resistances, window_area)
 
 
     def send_temperatures(self, param_dict : dict, simulation_time : datetime, time_step_number : TimeStepInformation, esdl_id : EsdlId, energy_system : EnergySystem):
