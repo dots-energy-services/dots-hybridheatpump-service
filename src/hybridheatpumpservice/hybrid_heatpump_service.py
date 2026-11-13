@@ -6,11 +6,12 @@ from dots_infrastructure.DataClasses import EsdlId, HelicsCalculationInformation
 from dots_infrastructure.HelicsFederateHelpers import HelicsSimulationExecutor
 from dots_infrastructure.Logger import LOGGER
 from esdl import EnergySystem
-from dots_infrastructure.CalculationServiceHelperFunctions import get_single_param_with_name
+from dots_infrastructure.CalculationServiceHelperFunctions import get_single_param_with_name, get_vector_param_with_name
 
 import json
 import numpy as np
 from hybridheatpumpservice.thermalsystems import House, HeatBuffer
+import math
 
 class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
@@ -100,23 +101,87 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         self.inv_capacitance_matrices: dict[EsdlId, np.array] = {}
         self.conductance_matrices: dict[EsdlId, np.array] = {}
         self.forcing_matrices: dict[EsdlId, np.array] = {}
+
+        building_features   = ["buildingYear", "floorArea", "numberOfFloors", "surfaceArea"]
+        building_info       = ["slantedRoofArea", "wallArea", "flatRoofArea", "windowArea", "height", "rcWall", "rcRoof",
+                                "rcFloor", "uWindow", "doorArea", "uDoor"]
+
+        # Constants house heat calculations
+        U_occupants_appliances  = 5     # [W/m2]
+        heatcapacity_air        = 1230  # [J/m3]
+        density_water           = 1000  # [kg/m3]
+        specific_heat_water     = 4183  # [J/(kg K)]
+
         for obj in energy_system.eAllContents():
             if hasattr(obj, "id") and isinstance(obj.eContainer(), esdl.Building) and obj.id in self.simulator_configuration.esdl_ids:
                 esdl_id = obj.id
                 hhpsystem = obj
-                building_description = json.loads(obj.eContainer().description)
-                self.hhp_description_dicts[esdl_id] = json.loads(hhpsystem.description)
+                building = obj.eContainer()
+
+                self.hhp_description_dicts[esdl_id] = {}
                 self.hhp_esdl_thermalpower[esdl_id] = hhpsystem.heatPumpThermalPower
 
                 # Set Buffer Tank
-                buffer_capacitance = self.hhp_description_dicts[esdl_id]['buffer_capacitance']
+                for asset in building.asset:
+                    if type(asset).__name__ == "WaterBuffer":
+                        if "sh_buffer" in asset.name:
+                            buffer_volume = asset.volume
+                            buffer_capacitance = (buffer_volume * density_water * specific_heat_water)
+                            self.hhp_description_dicts[esdl_id]['buffer_temp_min'] = asset.minStorageTemperature + 273.15
+                            self.hhp_description_dicts[esdl_id]['buffer_temp_max'] = asset.maxStorageTemperature + 273.15
+                            heating_demand = next(
+                                connected_to.eContainer()
+                                for port in asset.port
+                                for connected_to in port.connectedTo
+                                if isinstance(connected_to.eContainer(), esdl.HeatingDemand)
+                            )
+                            self.hhp_description_dicts[esdl_id]['house_temp_min'] = heating_demand.minTemperature + 273.15
+                            self.hhp_description_dicts[esdl_id]['house_temp_max'] = heating_demand.maxTemperature + 273.15
                 self.heat_buffers[esdl_id] = HeatBuffer(buffer_capacitance)
 
                 # Set Houses
-                capacities = {'C_in': building_description['C_in'], 'C_out': building_description['C_out']}
-                resistances = {'R_exch': building_description['R_exch'], 'R_floor': building_description['R_floor'],
-                               'R_vent': building_description['R_vent'], 'R_cond': building_description['R_cond']}
-                window_area = building_description['A_glass']
+                building_data = {}
+                for feature in building.eClass.eAllStructuralFeatures():
+                    if feature.name in building_features:
+                        value = getattr(building, feature.name)
+                        if value not in [None, 0, 0.0]:
+                            building_data[feature.name] = value
+                for bi in building.buildinginformation:
+                    for field in building_info:
+                        value = getattr(bi, field, None)
+                        # Store only non-zero values
+                        if value not in [None, 0, 0.0]:
+                            building_data[field] = value
+
+                building_data["roofArea"] = (building_data.get("slantedRoofArea", 0)
+                                             + building_data.get("flatRoofArea", 0))
+
+                if building_data["buildingYear"] <= 1967:
+                    qv10 = 4.0  # [dm3/s/m2]
+                else:
+                    qv10 = 0.3 + 3.7 * math.exp((1967 - building_data["buildingYear"]) / 16)  # [dm3/s/m2]
+
+                uservolume = building_data["surfaceArea"] * (building_data["height"] / building_data["numberOfFloors"])
+                ratio = 0.22  # 0.22
+                C_in = (0.0784 * uservolume + 1.97) * 1e6
+                C_out = (C_in / ratio) * (1 - ratio)
+
+                UA_vent = heatcapacity_air * (qv10 * (10 ** -0.7) * 10 ** -3) * building_data["surfaceArea"]
+                UA_exch = U_occupants_appliances * building_data["surfaceArea"]
+                UA_floor = building_data["floorArea"] / building_data["rcFloor"]
+                UA_transm = (building_data["wallArea"] / building_data["rcWall"]) + (
+                        (building_data["roofArea"]) / building_data["rcRoof"]) + (
+                                    building_data["windowArea"] * building_data["uWindow"]) + (
+                                    building_data["doorArea"] * building_data["uDoor"])
+                R_vent = 1 / UA_vent
+                R_exch = 1 / UA_exch
+                R_floor = 1 / UA_floor
+                R_cond = 1 / UA_transm - 1 / UA_exch
+
+                capacities = {'C_in': C_in, 'C_out': C_out}
+                resistances = {'R_exch': R_exch, 'R_floor': R_floor,
+                               'R_vent': R_vent, 'R_cond': R_cond}
+                window_area = building_data['windowArea']
                 self.houses[esdl_id] = House(capacities, resistances, window_area)
 
 
@@ -125,8 +190,8 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         LOGGER.info("calculation 'send_temperatures' started")
 
         predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
-        predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
-        predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
+        predicted_air_temperatures = [temp + 273.15 for temp in get_vector_param_with_name(param_dict, "air_temperature")[0]]
+        predicted_soil_temperatures = [temp + 273.15 for temp in get_vector_param_with_name(param_dict, "soil_temperature")[0]]
 
         # Check if the house and tank temperatures are properly initialized
         house = self.houses[esdl_id]
@@ -138,8 +203,8 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
             hhp_description_dict = self.hhp_description_dicts[esdl_id]
 
-            heat_buffer.set_initial_temperature(hhp_description_dict['buffer_temp_0'])
-            house.set_initial_temperatures(hhp_description_dict['house_temp_0'],
+            heat_buffer.set_initial_temperature(hhp_description_dict['buffer_temp_max'])
+            house.set_initial_temperatures(hhp_description_dict['house_temp_min'],
                                            self.hhp_esdl_thermalpower[esdl_id],
                                            current_air_temperature,
                                            current_soil_temperature,
@@ -168,8 +233,8 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
         # START user calc
         LOGGER.info("calculation 'update_temperatures' started")
         predicted_solar_irradiances = get_single_param_with_name(param_dict, "solar_irradiance")
-        predicted_air_temperatures = get_single_param_with_name(param_dict, "air_temperature")
-        predicted_soil_temperatures = get_single_param_with_name(param_dict, "soil_temperature")
+        predicted_air_temperatures = [temp + 273.15 for temp in get_vector_param_with_name(param_dict, "air_temperature")[0]]
+        predicted_soil_temperatures = [temp + 273.15 for temp in get_vector_param_with_name(param_dict, "soil_temperature")[0]]
         heat_to_buffer = get_single_param_with_name(param_dict, "heat_power_to_buffer_hhp")
         heat_to_house = get_single_param_with_name(param_dict,"heat_power_to_house_hhp")
 
