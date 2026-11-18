@@ -149,7 +149,7 @@ class CalculationServiceHybridHeatPump(HelicsSimulationExecutor):
 
                 # Set Buffer Tank
                 for asset in building.asset:
-                    if type(asset).__name__ == "WaterBuffer":
+                    if isinstance(asset, esdl.WaterBuffer):
                         if "sh_buffer" in asset.name:
                             buffer_volume = asset.volume
                             buffer_capacitance = (buffer_volume * density_water_kg_per_m3 * specific_heat_water_J_per_kg_per_K)
