@@ -7,7 +7,7 @@ from dots_infrastructure import CalculationServiceHelperFunctions
 from esdl.esdl_handler import EnergySystemHandler
 
 from hybridheatpumpservice.hybrid_heatpump_service import CalculationServiceHybridHeatPump
-
+from pathlib import Path
 
 BROKER_TEST_PORT = 23404
 START_DATE_TIME = datetime(2024, 1, 1, 0, 0, 0)
@@ -21,7 +21,7 @@ class Test(unittest.TestCase):
     def setUp(self):
         CalculationServiceHelperFunctions.get_simulator_configuration_from_environment = simulator_environment_e_connection
         esh = EnergySystemHandler()
-        esh.load_file('test/test.esdl')
+        esh.load_file(str(Path(__file__).parent / 'test.esdl'))
         energy_system = esh.get_energy_system()
         self.energy_system = energy_system
 
